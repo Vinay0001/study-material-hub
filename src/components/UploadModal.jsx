@@ -7,6 +7,7 @@ export const UploadModal = ({ isOpen, onClose, courseId, onUploadComplete }) => 
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [loading, setLoading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
 
     if (!isOpen) return null;
 
@@ -22,9 +23,14 @@ export const UploadModal = ({ isOpen, onClose, courseId, onUploadComplete }) => 
         if (!file || !courseId) return;
 
         setLoading(true);
+        setUploadProgress(0);
         try {
-            const uploadedFile = await storageService.uploadFile(file);
+            // Upload file to Firebase Storage with progress tracking
+            const uploadedFile = await storageService.uploadFile(file, (progress) => {
+                setUploadProgress(progress);
+            });
 
+            // Add material metadata to Firestore
             const material = {
                 courseId,
                 title,
@@ -35,14 +41,16 @@ export const UploadModal = ({ isOpen, onClose, courseId, onUploadComplete }) => 
                 fileSize: uploadedFile.size,
             };
 
-            storageService.addMaterial(material);
+            await storageService.addMaterial(material);
             onUploadComplete();
             onClose();
             setFile(null);
             setTitle('');
             setDescription('');
+            setUploadProgress(0);
         } catch (error) {
             console.error('Upload failed:', error);
+            alert('Upload failed: ' + error.message);
         } finally {
             setLoading(false);
         }
@@ -121,6 +129,21 @@ export const UploadModal = ({ isOpen, onClose, courseId, onUploadComplete }) => 
                                     </div>
                                 </div>
                             </div>
+
+                            {loading && uploadProgress > 0 && (
+                                <div className="mt-4">
+                                    <div className="flex justify-between text-sm text-slate-600 mb-1">
+                                        <span>Uploading...</span>
+                                        <span>{Math.round(uploadProgress)}%</span>
+                                    </div>
+                                    <div className="w-full bg-slate-200 rounded-full h-2">
+                                        <div
+                                            className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
+                                            style={{ width: `${uploadProgress}%` }}
+                                        ></div>
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="mt-5 sm:mt-6 flex justify-end space-x-3 pt-2 border-t border-slate-100">
                                 <button

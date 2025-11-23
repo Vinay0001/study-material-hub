@@ -15,6 +15,8 @@ export const Dashboard = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [isAddCourseModalOpen, setIsAddCourseModalOpen] = useState(false);
     const [newCourse, setNewCourse] = useState({ title: '', code: '', description: '' });
+    const [loading, setLoading] = useState(true);
+    const [materialsLoading, setMaterialsLoading] = useState(false);
 
     console.log('Dashboard Debug:', { user, role: user?.role, selectedCourse, courses });
 
@@ -22,21 +24,38 @@ export const Dashboard = () => {
         refreshCourses();
     }, []);
 
-    const refreshCourses = () => {
-        const loadedCourses = storageService.getCourses();
-        setCourses(loadedCourses);
-        if (loadedCourses.length > 0 && !selectedCourse) {
-            setSelectedCourse(loadedCourses[0]);
+    const refreshCourses = async () => {
+        setLoading(true);
+        try {
+            const loadedCourses = await storageService.getCourses();
+            setCourses(loadedCourses);
+            if (loadedCourses.length > 0 && !selectedCourse) {
+                setSelectedCourse(loadedCourses[0]);
+            }
+        } catch (error) {
+            console.error('Error loading courses:', error);
+        } finally {
+            setLoading(false);
         }
     };
 
     useEffect(() => {
-        if (selectedCourse) {
-            const loadedMaterials = storageService.getMaterials(selectedCourse.id);
-            setMaterials(loadedMaterials);
-        } else {
-            setMaterials([]);
-        }
+        const loadMaterials = async () => {
+            if (selectedCourse) {
+                setMaterialsLoading(true);
+                try {
+                    const loadedMaterials = await storageService.getMaterials(selectedCourse.id);
+                    setMaterials(loadedMaterials);
+                } catch (error) {
+                    console.error('Error loading materials:', error);
+                } finally {
+                    setMaterialsLoading(false);
+                }
+            } else {
+                setMaterials([]);
+            }
+        };
+        loadMaterials();
     }, [selectedCourse]);
 
     const handleDownload = (material) => {
@@ -50,37 +69,59 @@ export const Dashboard = () => {
         document.body.removeChild(link);
     };
 
-    const handleDelete = (materialId) => {
+    const handleDelete = async (material) => {
         if (window.confirm('Are you sure you want to delete this material?')) {
-            storageService.deleteMaterial(materialId);
-            refreshMaterials();
-        }
-    };
-
-    const handleAddCourse = (e) => {
-        e.preventDefault();
-        storageService.addCourse(newCourse);
-        setIsAddCourseModalOpen(false);
-        setNewCourse({ title: '', code: '', description: '' });
-        refreshCourses();
-    };
-
-    const handleDeleteCourse = (e, courseId) => {
-        e.stopPropagation(); // Prevent selecting the course
-        if (window.confirm('Are you sure you want to delete this course and all its materials?')) {
-            storageService.deleteCourse(courseId);
-            const loadedCourses = storageService.getCourses();
-            setCourses(loadedCourses);
-            if (selectedCourse?.id === courseId) {
-                setSelectedCourse(loadedCourses.length > 0 ? loadedCourses[0] : null);
+            try {
+                await storageService.deleteMaterial(material.id, material.fileUrl);
+                refreshMaterials();
+            } catch (error) {
+                console.error('Error deleting material:', error);
+                alert('Failed to delete material');
             }
         }
     };
 
-    const refreshMaterials = () => {
+    const handleAddCourse = async (e) => {
+        e.preventDefault();
+        try {
+            await storageService.addCourse(newCourse);
+            setIsAddCourseModalOpen(false);
+            setNewCourse({ title: '', code: '', description: '' });
+            refreshCourses();
+        } catch (error) {
+            console.error('Error adding course:', error);
+            alert('Failed to add course');
+        }
+    };
+
+    const handleDeleteCourse = async (e, courseId) => {
+        e.stopPropagation(); // Prevent selecting the course
+        if (window.confirm('Are you sure you want to delete this course and all its materials?')) {
+            try {
+                await storageService.deleteCourse(courseId);
+                const loadedCourses = await storageService.getCourses();
+                setCourses(loadedCourses);
+                if (selectedCourse?.id === courseId) {
+                    setSelectedCourse(loadedCourses.length > 0 ? loadedCourses[0] : null);
+                }
+            } catch (error) {
+                console.error('Error deleting course:', error);
+                alert('Failed to delete course');
+            }
+        }
+    };
+
+    const refreshMaterials = async () => {
         if (selectedCourse) {
-            const loadedMaterials = storageService.getMaterials(selectedCourse.id);
-            setMaterials(loadedMaterials);
+            setMaterialsLoading(true);
+            try {
+                const loadedMaterials = await storageService.getMaterials(selectedCourse.id);
+                setMaterials(loadedMaterials);
+            } catch (error) {
+                console.error('Error refreshing materials:', error);
+            } finally {
+                setMaterialsLoading(false);
+            }
         }
     };
 
@@ -222,7 +263,7 @@ export const Dashboard = () => {
                                             </button>
                                             {user?.role === 'admin' && (
                                                 <button
-                                                    onClick={() => handleDelete(material.id)}
+                                                    onClick={() => handleDelete(material)}
                                                     className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-all"
                                                     title="Delete"
                                                 >
