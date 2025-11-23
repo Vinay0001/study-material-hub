@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: '/study-materials-hub/', // <--- Replace with your actual repo name (e.g., '/study-hub/')
+  base: '/study-material-hub/', // <--- Matches the actual repo name
   plugins: [react(), tailwindcss()],
   // ...
 })
